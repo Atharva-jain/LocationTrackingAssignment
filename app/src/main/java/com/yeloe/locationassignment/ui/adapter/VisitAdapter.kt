@@ -28,7 +28,7 @@ class VisitAdapter(private val visits: List<Visit>) :
             "Location Name: ${visit.locationName}".also {
                 itemView.findViewById<TextView>(R.id.locationName).text = it
             }
-            "Date: ${visit.locationName}".also {
+            "Date: ${visit.date}".also {
                 itemView.findViewById<TextView>(R.id.date).text = it
             }
             "Entry Time: ${visit.entryTime}".also {

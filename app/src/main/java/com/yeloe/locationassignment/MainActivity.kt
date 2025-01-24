@@ -49,34 +49,47 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private val geofenceCenter =
         LatLng(21.4718766, 80.2013712) // Replace with actual center coordinates
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+    // declare multiple geofence
+    private val geofenceList = listOf(
+        LatLng(21.4718766, 80.2013712) to 57f, // Geofence 1
+        LatLng(21.4718766, 80.2023712) to 57f, // Geofence 2, 100 meters east of Geofence 1
+        LatLng(21.4708766, 80.2013712) to 57f  // Geofence 3, 100 meters south of Geofence 1
+    )
+
+    private fun addMultipleGeoFences() {
+        val geofencingRequestBuilder = GeofencingRequest.Builder()
+            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+
+        val pendingIntent = geoFenceHelper.getPendingIntent()
+
+        for ((center, radius) in geofenceList) {
+            val geofence = geoFenceHelper.getGeofence(
+                "GeoFence_${center.latitude}_${center.longitude}",
+                center,
+                radius,
+                Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT
+            )
+            geofencingRequestBuilder.addGeofence(geofence)
+        }
+
+        val geofencingRequest = geofencingRequestBuilder.build()
 
         if (checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
+            ) == PackageManager.PERMISSION_GRANTED
         ) {
+            geofencingClient.addGeofences(geofencingRequest, pendingIntent!!)
+                .addOnSuccessListener {
+                    Log.d("MainActivityLog", "All GeoFences added successfully.")
+                }
+                .addOnFailureListener { e ->
+                    val errorMessage = geoFenceHelper.getErrorString(e)
+                    Log.e("MainActivityLog", "Failed to add geofences: $errorMessage")
+                }
+        } else {
             requestPermissions()
         }
-
-        // creating view model
-        mVisitViewModel =
-            ViewModelProvider(this)[VisitViewModel::class.java]
-
-
-        // Initialize map
-        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
-        mapFragment.getMapAsync(this)
-
-        geofencingClient = LocationServices.getGeofencingClient(this)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        geoFenceHelper = GeoFenceHelper(this);
-
-        setupRecyclerView()
-
     }
 
     private fun addGeoFence() {
@@ -112,6 +125,38 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
 
     }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        if (checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions()
+        }
+
+        // creating view model
+        mVisitViewModel =
+            ViewModelProvider(this)[VisitViewModel::class.java]
+
+
+        // Initialize map
+        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
+        mapFragment.getMapAsync(this)
+
+        geofencingClient = LocationServices.getGeofencingClient(this)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        geoFenceHelper = GeoFenceHelper(this);
+
+        setupRecyclerView()
+
+    }
+
+
 
     private fun requestPermissions() {
         val permissions = mutableListOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -221,15 +266,17 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap = p0
         mMap.uiSettings.isZoomControlsEnabled = true
 
-        // Add geofence circle
-        mMap.addCircle(
-            CircleOptions()
-                .center(geofenceCenter)
-                .radius(geofenceRadius.toDouble())
-                .strokeColor(Color.RED)
-                .fillColor(0x22FF0000)
-                .strokeWidth(2f)
-        )
+        // Add geofence circles on the map
+        for ((center, radius) in geofenceList) {
+            mMap.addCircle(
+                CircleOptions()
+                    .center(center)
+                    .radius(radius.toDouble())
+                    .strokeColor(Color.RED)
+                    .fillColor(0x22FF0000)
+                    .strokeWidth(2f)
+            )
+        }
 
         // Move camera to geofence center
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(geofenceCenter, 15f))
@@ -254,7 +301,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         enableLocationTracking()
 
         // Set up geofence
-        addGeoFence()
+        addMultipleGeoFences()
     }
 
     private fun enableLocationTracking() {
